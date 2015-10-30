@@ -98,6 +98,7 @@ schedule_task(task(TaskName,shift(Day,Shift)),Employees,ScheduleAcc,Schedule) :-
 % 2. They cannot be listed as unavailable for the given Shift
 % 3. They cannot already be assigned elsewhere in the Schedule
 % 4. They cannot exceed their max_shifts for the week
+% 5. They cannot exceed their max_weekend_shifts
 can_assign(Employee,Schedule,TaskName,Day,Shift) :-
 	% 1. Check skills
 	task_skills(TaskName,Skills),
