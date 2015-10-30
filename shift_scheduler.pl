@@ -2,9 +2,8 @@
 %
 % New version to use shifts instead of hours
 %
+% For more real world applications of Prolog and CLP in particular, see:
 % http://4c.ucc.ie/~hsimonis/ccl2.pdf
-
-:- use_module(library(clpq)).
 
 employee(micah).
 employee(jonathan).
