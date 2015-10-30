@@ -9,21 +9,21 @@ capacity(victoria,4).
 capacity(elsa,3).
 
 %container(Name,Size,AvailableTime,Destination)
-container(a,2,3,charlotte).
+container(a,2,3,boston).
 container(b,4,7,baltimore).
-container(c,1,10,charlotte).
+container(c,1,10,boston).
 container(d,1,16,miami).
 container(e,4,17,baltimore).
 
 travel_time(origin,miami,5).
-travel_time(origin,charlotte,3).
+travel_time(origin,boston,3).
 travel_time(origin,baltimore,1).
-travel_time(miami,charlotte,8).
+travel_time(miami,boston,8).
 travel_time(miami,baltimore,6).
-travel_time(charlotte,miami,8).
-travel_time(charlotte,baltimore,2).
+travel_time(boston,miami,8).
+travel_time(boston,baltimore,2).
 travel_time(baltimore,miami,6).
-travel_time(baltimore,charlotte,2).
+travel_time(baltimore,boston,2).
 
 
 % schedule_earliest_finish(-EarliestSchedule,-EndTime)
