@@ -150,15 +150,6 @@ schedule_travel(Containers,CurrentLocation,NewLocation,CurrentTime,NewTime,Trave
     append(TravelEventsAcc,[travel(CurrentLocation,NewLocation,NewTime)],TravelEvents).
     
     
-%get_subset(List,Subset) :-
-%    length(List,L),
-%    length(Indices,SubsetSize),
-%    SubsetSize#>=0,SubsetSize#=<L,
-%    Indices ins 1..L,all_different(Indices),label(Indices),
-%    get_indices(List,Indices,SubList).
-    
-%get_indices(List,Indices,Sublist) :-
-    
 
 % subset(+List,-Subset)
 %
