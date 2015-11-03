@@ -13,13 +13,6 @@ max_shifts(micah,10).
 max_shifts(jonathan,12).
 max_shifts(blake,10).
 
-weekend(saturday).
-weekend(sunday).
-
-max_weekend_shifts(micah,1).
-max_weekend_shifts(jonathan,2).
-max_weekend_shifts(blake,1).
-
 skill(micah,programming).
 skill(micah,writing).
 skill(micah,speaking).
@@ -111,10 +104,7 @@ can_assign(Employee,Schedule,TaskName,Day,Shift) :-
 	\+(member(assign(Employee,_,Day,Shift),Schedule)),
 	
 	% 4. Have we exceeded our max shifts for the week?
-	check_max_shifts(Employee,Schedule),
-	
-	% 5. Have we exceeded our max weekend shifts for the week?
-	check_max_weekend_shifts(Employee,Schedule).
+	check_max_shifts(Employee,Schedule).
 	
 
 % has_skills(+Employee,+Skills)
@@ -134,12 +124,3 @@ check_max_shifts(Employee,Schedule) :-
 	max_shifts(Employee,MaxShifts),
 	Count =< MaxShifts.
 	
-% check_max_weekend_shifts(+Employee,+Schedule)
-%
-% Fails if the employee has too many weekend shifts.
-check_max_weekend_shifts(Employee,Schedule) :-
-	findall(Employee,(weekend(WeekendDay),member(assign(Employee,_,WeekendDay,_),Schedule)),EmployeeAppearances),
-	length(EmployeeAppearances,Count),
-	max_weekend_shifts(Employee,MaxShifts),
-	Count =< MaxShifts.
-   
