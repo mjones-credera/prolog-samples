@@ -194,11 +194,6 @@ build_core_constraints_employee(Assoc,[E|Es],T,ConstraintsAcc,Constraints) :-
 % tasks at the same time. Of the form:
 % (A_e(0),t(n1) + A_e(0),t(n2) + ... #=< 1) * (A_e(1),t(n1) + A_e(1),t(n2) + ... #=< 1)
 % where n1,n2,etc. are indices of tasks that occur at the same time.
-%
-% Note that "card" in clpb checks the count of true statements in a list, in this case
-% to see if the count is 0 or 1. This is shorter and simpler than other, more formal
-% solutions, which would involve either checking every pairwise combination or doing
-% a complex implication.
 build_simultaneous_constraints(Assoc,Es,Ts,Constraints) :-
     shifts(Shifts),
     % TasksGroupedByShift is of the form [[t(a1),t(a2),...],[t(b1),t(b2),...],...] where a,b,etc. are shifts
