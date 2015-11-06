@@ -1,32 +1,44 @@
+% By Micah Jones
+%
+% Based loosely on the concept for a nurse scheduling program from the following paper:
+% https://www.aaai.org/Papers/IAAI/1999/IAAI99-118.pdf
+%
+% For more real world applications of Prolog and CLP in particular, see:
+% http://4c.ucc.ie/~hsimonis/ccl2.pdf
+%
+% Special thanks to Markus Triska for his helpful advice in cleaning up the code here.
+
+:- use_module(library(lists)).
+:- use_module(library(apply)).
 :- use_module(library(clpfd)).
 
 employee(micah).
 employee(jonathan).
 employee(blake).
 
-max_shifts(micah,10).
-max_shifts(jonathan,12).
-max_shifts(blake,10).
+employee_max_shifts(micah,10).
+employee_max_shifts(jonathan,12).
+employee_max_shifts(blake,10).
 
-skill(micah,programming).
-skill(micah,writing).
-skill(micah,speaking).
-skill(micah,nunchucks).
-skill(jonathan,programming).
-skill(jonathan,babysitting).
-skill(jonathan,writing).
-skill(blake,programming).
-skill(blake,speaking).
+employee_skill(micah,programming).
+employee_skill(micah,writing).
+employee_skill(micah,speaking).
+employee_skill(micah,nunchucks).
+employee_skill(jonathan,programming).
+employee_skill(jonathan,babysitting).
+employee_skill(jonathan,writing).
+employee_skill(blake,programming).
+employee_skill(blake,speaking).
 
 task_skills(documentation,[programming,writing]).
 task_skills(web_design,[programming]).
 task_skills(server_programming,[programming]).
 task_skills(presentation,[speaking]).
 
-unavailable(micah,shift(friday,1)).
-unavailable(micah,shift(friday,2)).
-unavailable(micah,shift(saturday,1)).
-unavailable(micah,shift(saturday,2)).
+employee_unavailable(micah,shift(friday,1)).
+employee_unavailable(micah,shift(friday,2)).
+employee_unavailable(micah,shift(saturday,1)).
+employee_unavailable(micah,shift(saturday,2)).
 
 shifts([
     shift(monday,1),shift(monday,2),
@@ -67,6 +79,14 @@ task(server_programming,shift(friday,2)).
 task(presentation,shift(friday,1)).
 
 
+employee_assigned(micah,task(web_design,shift(monday,1))).
+employee_assigned(jonathan,task(web_design,shift(monday,2))).
+employee_assigned(micah,task(web_design,shift(tuesday,1))).
+employee_assigned(micah,task(web_design,shift(tuesday,2))).
+employee_assigned(blake,task(server_programming,shift(monday,1))).
+employee_assigned(blake,task(server_programming,shift(monday,2))).
+
+
 % get_employees(-Employees)
 get_employees(Employees) :-
     findall(employee(E),employee(E),Employees).
@@ -87,46 +107,40 @@ build_assoc_list(AssocAcc,[Pair|Pairs],Assoc) :-
     put_assoc(Pair,AssocAcc,_Var,AssocAcc2),
     build_assoc_list(AssocAcc2,Pairs,Assoc).
     
-% get_assoc_vars(+Assoc,+Keys,-Vars)
+% assoc_keys_vars(+Assoc,+Keys,-Vars)
 %
 % Retrieves all Vars from Assoc corresponding to Keys.
 % (Note: At first it seems we could use a fancy findall in place of this, but findall
 % will replace the Vars with new variable references, which ruins our map.)
-get_assoc_vars(Assoc,Keys,Vars) :-
-    get_assoc_vars(Assoc,Keys,[],Vars).
-    
-get_assoc_vars(_,[],Vars,Vars).
-get_assoc_vars(Assoc,[Key|Keys],VarsAcc,Vars) :-
-    get_assoc(Key,Assoc,Var),
-    append(VarsAcc,[Var],VarsAcc2),
-    get_assoc_vars(Assoc,Keys,VarsAcc2,Vars).
-    
-% convert_list_to_and(+Exprs,-Conjunction) :-
-convert_list_to_and([],1).
-convert_list_to_and([Expr],Expr).
-convert_list_to_and([Expr|Exprs],Conjunction) :-
-    Exprs \= [],
-    convert_list_to_and(Exprs,Conjunction2),
-    Conjunction = #/\(Expr,Conjunction2).
+assoc_keys_vars(Assoc, Keys, Vars) :-
+        maplist(assoc_key_var(Assoc), Keys, Vars).
+assoc_key_var(Assoc, Key, Var) :- get_assoc(Key, Assoc, Var).
 
-% convert_list_to_or(+Exprs,-Disjunction) :-
-convert_list_to_or([],1).
-convert_list_to_or([Expr],Expr).
-convert_list_to_or([Expr|Exprs],Disjunction) :-
-    Exprs \= [],
-    convert_list_to_or(Exprs,Disjunction2),
-    Disjunction = #\/(Expr,Disjunction2).
+% list_to_and(+Exprs,-Conjunction)
+% list_to_or(+Exprs,-Disjunction)
+% list_to_sum(+Exprs,-Sum)
+list_to_and([], 1).
+list_to_and([L|Ls], And) :- foldl(conjunction_, Ls, L, And).
+list_to_or([], 1).
+list_to_or([L|Ls], Or) :- foldl(disjunction_, Ls, L, Or).
+list_to_sum([],0).
+list_to_sum([L|Ls], Sum) :- foldl(sum_, Ls, L, Sum).
 
-% convert_list_to_chained_op(+Op,+Exprs,-Chain)
-convert_list_to_chained_op(_,[],0).
-convert_list_to_chained_op(_,[Expr],Expr).
-convert_list_to_chained_op(Op,[Expr|Exprs],Chain) :-
-    Exprs \= [],
-    convert_list_to_chained_op(Op,Exprs,Chain2),
-    Chain =.. [Op,Expr,Chain2].
+conjunction_(A, B, B#/\A).
+disjunction_(A, B, B#\/A).
+sum_(A,B,B+A).
 
 
 % schedule(-Schedule)
+%
+% Uses clp(fd) to generate a schedule of assignments, as a list of assign(Employee,Task)
+% elements. Adheres to the following rules:
+% (1) Every task must have an employee assigned to it.
+% (2) No employee may be assigned to multiple tasks in the same shift.
+% (3) No employee may be assigned to more than their maximum number of shifts.
+% (4) No employee may be assigned to a task during a shift in which they are unavailable.
+% (5) No employee may be assigned to a task for which they lack necessary skills.
+% (6) Any pre-existing assignments (employee_assigned) must still hold.
 schedule(Schedule) :-
     get_employees(Es),
     get_tasks(Ts),
@@ -138,164 +152,135 @@ schedule(Schedule) :-
     Constraints,
     label(AssocValues),
     
-    write('Constraints = '),writeln(Constraints),writeln(''),
-    writeln('Assoc = '),
-    findall(_,(
-            member(Key,AssocKeys),
-            get_assoc(Key,Assoc,Val),
-            format('(~w,~w)~n',[Key,Val])
-        ),_),
-    
     findall(AssocKey,(member(AssocKey,AssocKeys),get_assoc(AssocKey,Assoc,1)),Assignments),
     Schedule = Assignments.
     
     
 % build_constraints(+Assoc,+Employees,+Tasks,-Constraints)
 build_constraints(Assoc,Es,Ts,Constraints) :-
-    build_core_constraints(Assoc,Es,Ts,CoreConstraints),
-    build_simultaneous_constraints(Assoc,Es,Ts,SimultaneousConstraints),
-    build_max_shifts_constraints(Assoc,Es,Ts,MaxShiftsConstraints),
-    build_unavailable_constraints(Assoc,Es,Ts,UnavailableConstraints),
-    build_skills_constraints(Assoc,Es,Ts,SkillsConstraints),
-    convert_list_to_and(
-        [CoreConstraints,SimultaneousConstraints,MaxShiftsConstraints,UnavailableConstraints,SkillsConstraints],
+    core_constraints(Assoc,Es,Ts,CoreConstraints),
+    simul_constraints(Assoc,Es,Ts,SimulConstraints),
+    max_shifts_constraints(Assoc,Es,Ts,MaxShiftsConstraints),
+    unavailable_constraints(Assoc,Es,Ts,UnavailableConstraints),
+    skills_constraints(Assoc,Es,Ts,SkillsConstraints),
+    assigned_constraints(Assoc,AssignedConstraints),
+    list_to_and(
+        [CoreConstraints,SimulConstraints,MaxShiftsConstraints,
+         UnavailableConstraints,SkillsConstraints,AssignedConstraints],
         Constraints).
     
-% build_core_constraints(+Assoc,+Employees,+Tasks,-Constraints)
+% core_constraints(+Assoc,+Employees,+Tasks,-Constraints)
 %
 % Builds the main conjunctive sequence of the form:
-% (A_e(0),t(0) + A_e(1),t(0) + ...) * (A_e(0),t(1) + A_e(1),t(1) + ...) * ...
-build_core_constraints(Assoc,Es,Ts,Constraints) :-
-    build_core_constraints_task(Assoc,Es,Ts,[],Constraints).
+% (A_e(0),t(0) \/ A_e(1),t(0) \/ ...) /\ (A_e(0),t(1) \/ A_e(1),t(1) \/ ...) /\ ...
+core_constraints(Assoc,Es,Ts,Constraints) :-
+    maplist(core_constraints_disj(Assoc,Es),Ts,Disjs),
+    list_to_and(Disjs,Constraints).
 
-% build_core_constraints_task(+Assoc,+Employees,+Tasks,+ConstraintsAcc,-Constraints)
-% Helper for build_core_constraints, builds a conjunction of sub-expressions, each of
-% which requires at least one employee to be assigned to a given task.
-build_core_constraints_task(_,_,[],Constraints,AndConstraints) :-
-    convert_list_to_and(Constraints,AndConstraints).
-build_core_constraints_task(Assoc,Es,[T|Ts],ConstraintsAcc,Constraints) :-
-    build_core_constraints_employee(Assoc,Es,T,[],TaskConstraints),
-    append(ConstraintsAcc,[TaskConstraints],ConstraintsAcc2),
-    build_core_constraints_task(Assoc,Es,Ts,ConstraintsAcc2,Constraints).
+% core_constraints_disj(+Assoc,+Employees,+Task,-Disjunction)
+% Helper for core_constraints, builds a disjunction of sub-expressions, such that
+% at least one employee must be assigned to Task
+core_constraints_disj(Assoc,Es,T,Disj) :-
+    findall(assign(E,T),member(E,Es),Keys),
+    assoc_keys_vars(Assoc,Keys,Vars),
+    list_to_or(Vars,Disj).
 
-% build_core_constraints_employee(+Assoc,+Employees,+Task,+ConstraintsAcc,-Constraints)
-% Helper for build_core_constraints_task, builds a disjunctive sequence of employees per task
-build_core_constraints_employee(_,[],_,Constraints,OrConstraints) :-
-    convert_list_to_or(Constraints,OrConstraints).
-build_core_constraints_employee(Assoc,[E|Es],T,ConstraintsAcc,Constraints) :-
-    get_assoc(assign(E,T),Assoc,Var),
-    append(ConstraintsAcc,[Var],ConstraintsAcc2),
-    build_core_constraints_employee(Assoc,Es,T,ConstraintsAcc2,Constraints).
-    
 
-% build_simultaneous_constraints(+Assoc,+Employees,+Tasks,-Constraints)
+% simul_constraints(+Assoc,+Employees,+Tasks,-Constraints)
 %
 % Builds a constraint expression to prevent one person from being assigned to multiple
 % tasks at the same time. Of the form:
-% (A_e(0),t(n1) + A_e(0),t(n2) + ... #=< 1) * (A_e(1),t(n1) + A_e(1),t(n2) + ... #=< 1)
+% (A_e(0),t(n1) + A_e(0),t(n2) + ... #=< 1) /\ (A_e(1),t(n1) + A_e(1),t(n2) + ... #=< 1)
 % where n1,n2,etc. are indices of tasks that occur at the same time.
-build_simultaneous_constraints(Assoc,Es,Ts,Constraints) :-
+simul_constraints(Assoc,Es,Ts,Constraints) :-
     shifts(Shifts),
-    % TasksGroupedByShift is of the form [[t(a1),t(a2),...],[t(b1),t(b2),...],...] where a,b,etc. are shifts
-    findall(ShiftTasks,(
-            member(Shift,Shifts),
-            findall(task(TaskName,Shift),member(task(TaskName,Shift),Ts),ShiftTasks)
-        ),TasksGroupedByShift),
-    build_simultaneous_constraints_employee(Assoc,Es,TasksGroupedByShift,[],Constraints).
-
-% build_simultaneous_constraints_employee(+Assoc,+Employees,+TasksGroupedByShift,+ConstraintsAcc,-Constraints)
-build_simultaneous_constraints_employee(_,[],_,Constraints,AndConstraints) :-
-    convert_list_to_and(Constraints,AndConstraints).
-build_simultaneous_constraints_employee(Assoc,[E|Es],TasksGroupedByShift,ConstraintsAcc,Constraints) :-
-    build_simultaneous_constraints_shift(Assoc,E,TasksGroupedByShift,[],EmployeeConstraints),
-    append(ConstraintsAcc,EmployeeConstraints,ConstraintsAcc2),
-    build_simultaneous_constraints_employee(Assoc,Es,TasksGroupedByShift,ConstraintsAcc2,Constraints).
-
-% build_simultaneous_constraints_shift(+Assoc,+Employee,+TasksGroupedByShift,+ConstraintsAcc,-Constraints)
-build_simultaneous_constraints_shift(_,_,[],Constraints,Constraints).
-build_simultaneous_constraints_shift(Assoc,E,[Ts|TasksGroupedByShift],ConstraintsAcc,Constraints) :-
-    findall(assign(E,T),member(T,Ts),Keys),
-    get_assoc_vars(Assoc,Keys,Vars),
-    convert_list_to_chained_op('+',Vars,SumExpr),
-    append(ConstraintsAcc,[SumExpr #=< 1],ConstraintsAcc2),
-    build_simultaneous_constraints_shift(Assoc,E,TasksGroupedByShift,ConstraintsAcc2,Constraints).
+    findall(employee_shift(E,Shift),(member(E,Es),member(Shift,Shifts)),EmployeeShifts),
+    maplist(simul_constraints_subexpr(Assoc,Ts),EmployeeShifts,SubExprs),
+    list_to_and(SubExprs,Constraints).
     
+simul_constraints_subexpr(Assoc,Ts,employee_shift(E,Shift),(SumExpr #=< 1)) :-
+    findall(task(TName,Shift),member(task(TName,Shift),Ts),ShiftTs),
+    findall(assign(E,T),member(T,ShiftTs),Keys),
+    assoc_keys_vars(Assoc,Keys,Vars),
+    list_to_sum(Vars,SumExpr).
 
-% build_max_shifts_constraints(+Assoc,+Employees,+Tasks,-Constraints)
+
+% max_shifts_constraints(+Assoc,+Employees,+Tasks,-MaxShiftsConstraints)
 %
-% Builds a constraint expression that prevents employees from being assigned too many shifts.
-build_max_shifts_constraints(Assoc,Es,Ts,Constraints) :-
-    build_max_shifts_constraints_employee(Assoc,Es,Ts,[],Constraints).
+% Builds a constraint expression that prevents employees from being assigned too many
+% shifts. Of the form:
+% (A_e(0),t(0) + A_e(0),t(1) + ... #=< M_e(0)) /\ (A_e(1),t(0) + A_e(1),t(1) + ... #=< M_e(1)) /\ ...
+% where M_e(n) is the max number of shifts for employee n.
+max_shifts_constraints(Assoc,Es,Ts,MaxShiftsConstraints) :-
+    maplist(max_shifts_subexpr(Assoc,Ts),Es,SubExprs),
+    list_to_and(SubExprs,MaxShiftsConstraints).
 
-build_max_shifts_constraints_employee(_,[],_,Constraints,AndConstraints) :-
-    convert_list_to_and(Constraints,AndConstraints).
-build_max_shifts_constraints_employee(Assoc,[E|Es],Ts,ConstraintsAcc,Constraints) :-
-    E = employee(EmployeeName),
-    max_shifts(EmployeeName,MaxShifts),
+max_shifts_subexpr(Assoc,Ts,E,(SumExpr #=< MaxShifts)) :-
+    E = employee(EName),
+    employee_max_shifts(EName,MaxShifts),
     findall(assign(E,T),member(T,Ts),Keys),
-    get_assoc_vars(Assoc,Keys,Vars),
-    convert_list_to_chained_op('+',Vars,SumExpr),
-    append(ConstraintsAcc,[SumExpr #=< MaxShifts],ConstraintsAcc2),
-    build_max_shifts_constraints_employee(Assoc,Es,Ts,ConstraintsAcc2,Constraints).
+    assoc_keys_vars(Assoc,Keys,Vars),
+    list_to_sum(Vars,SumExpr).
 
 
-% build_unavailable_constraints(+Assoc,+Employees,+Tasks,-Constraints)
-build_unavailable_constraints(Assoc,Es,Ts,Constraints) :-
-    build_unavailable_constraints_employees(Assoc,Es,Ts,[],Constraints).
-    
-% build_unavailable_constraints_employees(+Assoc,+Employees,+Tasks,+ConstraintsAcc,-Constraints)
-build_unavailable_constraints_employees(_,[],_,Constraints,AndConstraints) :-
-    convert_list_to_and(Constraints,AndConstraints).
-build_unavailable_constraints_employees(Assoc,[E|Es],Ts,ConstraintsAcc,Constraints) :-
-    E = employee(EmployeeName),
-    findall(Shift,unavailable(EmployeeName,Shift),UnavailableShifts),
-    findall(assign(E,T),(
-            member(UnavailableShift,UnavailableShifts),
-            member(task(TaskName,UnavailableShift),Ts),
-            T = task(TaskName,UnavailableShift)
-        ),Keys),
-    get_assoc_vars(Assoc,Keys,Vars),
-    falsify_vars(Vars,FalsifiedList),
-    append(ConstraintsAcc,FalsifiedList,ConstraintsAcc2),
-    build_unavailable_constraints_employees(Assoc,Es,Ts,ConstraintsAcc2,Constraints).
-    
-
-% build_skills_constraints(+Assoc,+Employees,+Tasks,-Constraints)
+% unavailable_constraints(+Assoc,+Employees,+Tasks,-Constraints)
 %
-% Exclude all tasks for which the employee lacks the necessary skills.
-build_skills_constraints(Assoc,Es,Ts,Constraints) :-
-    build_skills_constraints_employees(Assoc,Es,Ts,[],Constraints).
-    
-% build_skills_constraints_employees(+Assoc,+Employees,+Tasks,+ConstraintsAcc,-Constraints)
-build_skills_constraints_employees(_,[],_,Constraints,AndConstraints) :-
-    convert_list_to_and(Constraints,AndConstraints).
-build_skills_constraints_employees(Assoc,[E|Es],Ts,ConstraintsAcc,Constraints) :-
-    E = employee(EmployeeName),
+% For every shift for which an employee e(n) is unavailable, add a constraint of the form
+% A_e(n),t(x) = 0 for every t(x) that occurs during that shift. Note that 0 is equivalent
+% to False in clp(fd).
+unavailable_constraints(Assoc,Es,Ts,Constraints) :-
     findall(assign(E,T),(
-            member(task(TaskName,TaskShift),Ts),
-            task_skills(TaskName,TaskSkills),
-            \+has_skills(EmployeeName,TaskSkills),
-            T = task(TaskName,TaskShift)
+            member(E,Es),
+            E = employee(EName),
+            employee_unavailable(EName,Shift),
+            member(T,Ts),
+            T = task(_TName,Shift)
         ),Keys),
-    get_assoc_vars(Assoc,Keys,Vars),
-    falsify_vars(Vars,FalsifiedList),
-    append(ConstraintsAcc,FalsifiedList,ConstraintsAcc2),
-    build_skills_constraints_employees(Assoc,Es,Ts,ConstraintsAcc2,Constraints).
-    
-
-falsify_vars(Vars,FalsifiedList) :- falsify_vars(Vars,[],FalsifiedList).
-
-falsify_vars([],FL,FL).
-falsify_vars([V|Vs],FLAcc,FL) :-
-    append(FLAcc,[V#=0],FLAcc2),
-    falsify_vars(Vs,FLAcc2,FL).
+    assoc_keys_vars(Assoc,Keys,Vars),
+    maplist(var_is_false,Vars,FalseVars),
+    list_to_and(FalseVars,Constraints).
 
 
-% has_skills(+Employee,+Skills)
+% skills_constraints(+Assoc,+Employees,+Tasks,-Constraints)
+%
+% For every task t(m) for which an employee e(n) lacks sufficient skills, add a
+% constraint of the form A_e(n),t(m) = 0.
+skills_constraints(Assoc,Es,Ts,Constraints) :-
+    findall(assign(E,T),(
+            member(T,Ts),
+            T = task(TName,_TShift),
+            task_skills(TName,TSkills),
+            member(E,Es),
+            \+employee_has_skills(E,TSkills)
+        ),Keys),
+    assoc_keys_vars(Assoc,Keys,Vars),
+    maplist(var_is_false,Vars,FalseVars),
+    list_to_and(FalseVars,Constraints).
+                    
+
+% employee_has_skills(+Employee,+Skills)
 %
 % Fails if Employee does not possess all Skills.
-has_skills(_,[]).
-has_skills(Employee,[Skill|Skills]) :-
-	skill(Employee,Skill),
-	has_skills(Employee,Skills).
+employee_has_skills(employee(EName),Skills) :-
+    findall(ESkill,employee_skill(EName,ESkill),ESkills),
+    subset(Skills,ESkills).
+    
 
+% assigned_constraints(+Assoc,-Constraints)
+%
+% For every task t(m) to which an employee e(n) is already assigned, add a constraint
+% of the form A_e(n),t(m) = 1 to force the assignment into the schedule.
+assigned_constraints(Assoc,Constraints) :-
+    findall(assign(E,T),(
+            employee_assigned(EName,T),
+            E = employee(EName)
+        ),Keys),
+    assoc_keys_vars(Assoc,Keys,Vars),
+    maplist(var_is_true,Vars,TrueVars),
+    list_to_and(TrueVars,Constraints).
+        
+        
+% var_is_false(+Var,-Expr)
+var_is_false(Var,Var#=0).
+var_is_true(Var,Var#=1).
+        
