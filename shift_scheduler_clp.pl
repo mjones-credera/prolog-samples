@@ -38,7 +38,7 @@ employee_skill(jonathan,writing).
 employee_skill(blake,programming).
 employee_skill(blake,speaking).
 
-task_skills(documentation,[programming,writing,babysitting]).
+task_skills(documentation,[programming,writing]).
 task_skills(web_design,[programming]).
 task_skills(server_programming,[programming]).
 task_skills(presentation,[speaking]).
@@ -60,39 +60,39 @@ shifts([
 
 % tasks to assign
 task(documentation,shift(saturday,1)).
-%task(documentation,shift(monday,2)).
+task(documentation,shift(monday,2)).
 
-%task(web_design,shift(monday,1)).
-%task(web_design,shift(monday,2)).
-%task(web_design,shift(tuesday,1)).
-%task(web_design,shift(tuesday,2)).
-%task(web_design,shift(wednesday,1)).
-%task(web_design,shift(wednesday,2)).
-%task(web_design,shift(thursday,1)).
-%task(web_design,shift(thursday,2)).
+task(web_design,shift(monday,1)).
+task(web_design,shift(monday,2)).
+task(web_design,shift(tuesday,1)).
+task(web_design,shift(tuesday,2)).
+task(web_design,shift(wednesday,1)).
+task(web_design,shift(wednesday,2)).
+task(web_design,shift(thursday,1)).
+task(web_design,shift(thursday,2)).
 task(web_design,shift(saturday,1)).
-%task(web_design,shift(saturday,2)).
+task(web_design,shift(saturday,2)).
 
-%task(server_programming,shift(monday,1)).
-%task(server_programming,shift(monday,2)).
-%task(server_programming,shift(tuesday,1)).
-%task(server_programming,shift(tuesday,2)).
-%task(server_programming,shift(wednesday,1)).
-%task(server_programming,shift(wednesday,2)).
-%task(server_programming,shift(thursday,1)).
-%task(server_programming,shift(thursday,2)).
-%task(server_programming,shift(friday,1)).
-%task(server_programming,shift(friday,2)).
+task(server_programming,shift(monday,1)).
+task(server_programming,shift(monday,2)).
+task(server_programming,shift(tuesday,1)).
+task(server_programming,shift(tuesday,2)).
+task(server_programming,shift(wednesday,1)).
+task(server_programming,shift(wednesday,2)).
+task(server_programming,shift(thursday,1)).
+task(server_programming,shift(thursday,2)).
+task(server_programming,shift(friday,1)).
+task(server_programming,shift(friday,2)).
 
 task(presentation,shift(friday,1)).
 
 
-%employee_assigned(micah,task(web_design,shift(monday,1))).
-%employee_assigned(jonathan,task(web_design,shift(monday,2))).
-%employee_assigned(micah,task(web_design,shift(tuesday,1))).
-%employee_assigned(micah,task(web_design,shift(tuesday,2))).
-%employee_assigned(blake,task(server_programming,shift(monday,1))).
-%employee_assigned(blake,task(server_programming,shift(monday,2))).
+employee_assigned(micah,task(web_design,shift(monday,1))).
+employee_assigned(jonathan,task(web_design,shift(monday,2))).
+employee_assigned(micah,task(web_design,shift(tuesday,1))).
+employee_assigned(micah,task(web_design,shift(tuesday,2))).
+employee_assigned(blake,task(server_programming,shift(monday,1))).
+employee_assigned(blake,task(server_programming,shift(monday,2))).
 
 
 % get_employees(-Employees)
